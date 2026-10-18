@@ -44,7 +44,9 @@ class CameraStream:
             raise RuntimeError(f"Could not open camera index {index}. "
                                "Check the camera permission and --camera index.")
 
-        if use_mjpg:
+        # MJPG helps USB webcams on Windows/Linux reach 30+ FPS, but on macOS
+        # (AVFoundation) forcing it can produce black frames, so skip it there.
+        if use_mjpg and platform.system() != "Darwin":
             self._cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
         self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
         self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
@@ -68,6 +70,8 @@ class CameraStream:
 
     def _run(self) -> None:
         failures = 0
+        dark_since: float | None = None
+        warned_dark = False
         backoff = threading.Event()  # Used only to pause briefly after read errors.
         while self._running:
             ok, frame = self._cap.read()
@@ -79,6 +83,17 @@ class CameraStream:
                 continue
             failures = 0
             ts = time.monotonic()
+            # Warn once if the camera only delivers black frames (wrong camera,
+            # an iPhone Continuity Camera that isn't active, lens covered...).
+            if not warned_dark and self.frames_captured % 15 == 0:
+                if float(frame[::16, ::16].mean()) < 8.0:
+                    dark_since = dark_since or ts
+                    if ts - dark_since > 3.0:
+                        warned_dark = True
+                        print("[camera] frames are completely black. Wrong camera? "
+                              "Run `python main.py --list-cameras` and pick one with --camera N.")
+                else:
+                    dark_since = None
             if self._mirror:
                 frame = cv2.flip(frame, 1)
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -97,6 +112,34 @@ class CameraStream:
             ):
                 return None
             return self._latest
+
+    @staticmethod
+    def probe(max_index: int = 5) -> None:
+        """Print which camera indices open and whether they deliver real images."""
+        backoff = threading.Event()
+        for idx in range(max_index):
+            cap = cv2.VideoCapture(idx, _backend())
+            if not cap.isOpened():
+                cap.release()
+                print(f"  camera {idx}: not available")
+                continue
+            brightness, size = None, ""
+            deadline = time.monotonic() + 3.0  # Cameras often send dark frames while warming up.
+            while time.monotonic() < deadline:
+                ok, frame = cap.read()
+                if ok and frame is not None:
+                    size = f"{frame.shape[1]}x{frame.shape[0]}"
+                    brightness = float(frame.mean())
+                    if brightness >= 8.0:
+                        break
+                else:
+                    backoff.wait(0.05)
+            cap.release()
+            if brightness is None:
+                print(f"  camera {idx}: opens but gives no frames")
+            else:
+                verdict = "OK" if brightness >= 8.0 else "BLACK (probably not this one)"
+                print(f"  camera {idx}: {size}, brightness {brightness:.0f} -> {verdict}")
 
     def stop(self) -> None:
         self._running = False

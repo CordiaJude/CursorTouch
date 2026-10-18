@@ -32,6 +32,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--monitor", default=str(config.MONITOR),
                    help='"all", "primary" or a monitor index')
     p.add_argument("--list-monitors", action="store_true", help="print monitors and exit")
+    p.add_argument("--list-cameras", action="store_true",
+                   help="test camera indices 0-4 and report which give real images")
     p.add_argument("--dry-run", action="store_true",
                    help="track and recognise gestures without moving the mouse or typing")
     return p.parse_args()
@@ -70,6 +72,11 @@ def main() -> int:
         return 0
 
     import cv2
+
+    if args.list_cameras:
+        from camera import CameraStream
+        CameraStream.probe()
+        return 0
 
     import preview
     from actions import InputController

@@ -48,6 +48,8 @@ macOS grants these permissions to the app that runs Python: Terminal, iTerm, VS 
 
 On a Mac keyboard, F8 may control media playback. Press **fn+F8**, or turn on "Use F1, F2, etc. keys as standard function keys". You can also change `PAUSE_HOTKEY` in `config.py`.
 
+If the preview is **black**, camera 0 is probably your iPhone (Continuity Camera). Run `python main.py --list-cameras` and use the camera marked OK, for example `python main.py --camera 1`.
+
 Retina displays work without any setup. Cursor coordinates use macOS points, so the active zone always covers the whole screen.
 
 ### Windows
@@ -70,6 +72,7 @@ python main.py --no-preview    # no window, lowest overhead
 python main.py --debug         # print live finger distances, for tuning
 python main.py --dry-run       # recognize gestures without moving the mouse or typing
 python main.py --camera 1      # use a different webcam
+python main.py --list-cameras  # test each camera; use the "OK" one with --camera N
 python main.py --list-monitors # list monitors, then choose one with --monitor 1
 python main.py --monitor primary
 ```
