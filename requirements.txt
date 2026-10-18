@@ -1,0 +1,7 @@
+# Hand tracking (Tasks API with LIVE_STREAM mode). It installs opencv-contrib-python,
+# which provides cv2: do NOT also install opencv-python, the two packages clash.
+mediapipe>=0.10.14
+opencv-contrib-python>=4.8
+# Mouse/keyboard output and the global pause hotkey.
+pynput>=1.7.6
+numpy>=1.24
