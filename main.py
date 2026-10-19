@@ -28,7 +28,8 @@ def parse_args() -> argparse.Namespace:
                    help="run without a preview window (lowest overhead)")
     p.add_argument("--debug", action="store_true",
                    help="print normalized thumb-to-finger distances every frame")
-    p.add_argument("--camera", type=int, default=config.CAMERA_INDEX, help="camera index")
+    p.add_argument("--camera", type=int, default=None,
+                   help="camera index (on macOS this turns off the built-in camera auto-pick)")
     p.add_argument("--monitor", default=str(config.MONITOR),
                    help='"all", "primary" or a monitor index')
     p.add_argument("--list-monitors", action="store_true", help="print monitors and exit")
@@ -74,13 +75,16 @@ def main() -> int:
     import cv2
 
     if args.list_cameras:
-        from camera import CameraStream
+        from camera import CameraStream, list_cameras_mac
+        for c in list_cameras_mac() or []:
+            kind = "built-in" if c.builtin else "iPhone/iPad" if c.phone else "other"
+            print(f"  {c.index}: {c.name} ({kind})")
         CameraStream.probe()
         return 0
 
     import preview
     from actions import InputController
-    from camera import CameraStream
+    from camera import CameraStream, resolve_camera_index
     from cursor import CursorController
     from gestures import Controls, GestureEngine
     from hand_tracker import HandTracker, ensure_model
@@ -107,9 +111,13 @@ def main() -> int:
     signal.signal(signal.SIGTERM, lambda *_: (_ for _ in ()).throw(KeyboardInterrupt()))
 
     try:
-        camera = CameraStream(args.camera, config.CAMERA_WIDTH, config.CAMERA_HEIGHT,
+        cam_index = resolve_camera_index(
+            config.CAMERA_INDEX if args.camera is None else args.camera,
+            prefer_builtin=config.PREFER_BUILTIN_CAMERA and args.camera is None,
+            allow_phone=config.ALLOW_PHONE_CAMERA)
+        camera = CameraStream(cam_index, config.CAMERA_WIDTH, config.CAMERA_HEIGHT,
                               config.CAMERA_FPS, config.MIRROR, config.CAMERA_USE_MJPG).start()
-        print(f"[camera] {camera.width}x{camera.height} @ index {args.camera}")
+        print(f"[camera] {camera.width}x{camera.height} @ index {cam_index}")
         listener = start_hotkey_listener(controls, inputs)
         print(f"[ready] {config.PAUSE_HOTKEY.upper()} = pause/resume, "
               f"{'Q/Esc in preview or ' if show_preview else ''}Ctrl+C = quit")

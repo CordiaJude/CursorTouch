@@ -33,6 +33,73 @@ def _backend() -> int:
     return cv2.CAP_V4L2 if hasattr(cv2, "CAP_V4L2") else cv2.CAP_ANY
 
 
+@dataclass(frozen=True)
+class CameraInfo:
+    index: int             # The OpenCV index for this camera.
+    name: str
+    builtin: bool          # The computer's own camera (e.g. "MacBook Air Camera").
+    phone: bool            # An iPhone/iPad used as a Continuity Camera.
+
+
+def list_cameras_mac() -> list[CameraInfo] | None:
+    """Name every camera in the same order OpenCV's AVFoundation backend indexes them.
+
+    Returns None if the names can't be read (pyobjc-framework-AVFoundation missing).
+    """
+    try:
+        import AVFoundation as av
+    except ImportError:
+        return None
+    # OpenCV builds its index list as: video devices, then muxed devices.
+    devices = list(av.AVCaptureDevice.devicesWithMediaType_(av.AVMediaTypeVideo) or [])
+    devices += list(av.AVCaptureDevice.devicesWithMediaType_(av.AVMediaTypeMuxed) or [])
+    builtin_type = getattr(av, "AVCaptureDeviceTypeBuiltInWideAngleCamera", None)
+    continuity_type = getattr(av, "AVCaptureDeviceTypeContinuityCamera", None)
+    cams = []
+    for i, dev in enumerate(devices):
+        name = str(dev.localizedName())
+        dtype = dev.deviceType() if hasattr(dev, "deviceType") else None
+        model = str(dev.modelID() or "") if hasattr(dev, "modelID") else ""
+        phone = ((continuity_type is not None and dtype == continuity_type)
+                 or any(k in (name + " " + model) for k in ("iPhone", "iPad")))
+        builtin = not phone and (
+            (builtin_type is not None and dtype == builtin_type)
+            or any(k in name for k in ("FaceTime", "MacBook", "Built-in", "iMac")))
+        cams.append(CameraInfo(i, name, builtin, phone))
+    return cams
+
+
+def resolve_camera_index(requested: int, prefer_builtin: bool, allow_phone: bool) -> int:
+    """Pick the camera to open. On macOS: the built-in camera, never an iPhone.
+
+    Raises RuntimeError rather than silently opening a phone camera.
+    """
+    if platform.system() != "Darwin":
+        return requested
+    cams = list_cameras_mac()
+    if cams is None:
+        print("[camera] can't read camera names (run `pip install -r requirements.txt`); "
+              f"using index {requested}")
+        return requested
+    for c in cams:
+        tag = " [built-in]" if c.builtin else " [iPhone - blocked]" if c.phone and not allow_phone else ""
+        print(f"[camera] found {c.index}: {c.name}{tag}")
+    if prefer_builtin:
+        builtin = next((c for c in cams if c.builtin), None)
+        if builtin is not None:
+            return builtin.index
+        print("[camera] no built-in camera found")
+    chosen = next((c for c in cams if c.index == requested), None)
+    if chosen is not None and chosen.phone and not allow_phone:
+        others = [c for c in cams if not c.phone]
+        if others:
+            print(f"[camera] camera {requested} is an iPhone; using {others[0].name} instead")
+            return others[0].index
+        raise RuntimeError("The only camera available is an iPhone, and phone cameras are "
+                           "disabled (ALLOW_PHONE_CAMERA in config.py).")
+    return requested
+
+
 class CameraStream:
     def __init__(self, index: int, width: int, height: int, fps: int,
                  mirror: bool = True, use_mjpg: bool = True) -> None:

@@ -18,6 +18,10 @@ Units used throughout:
 # Camera
 # ---------------------------------------------------------------------------
 CAMERA_INDEX = 0            # Which webcam to open (0 = default). Override with --camera.
+PREFER_BUILTIN_CAMERA = True  # macOS: always use the computer's own camera, whatever its index.
+                              # Set False to use CAMERA_INDEX / --camera instead.
+ALLOW_PHONE_CAMERA = False    # macOS: never open an iPhone/iPad (Continuity Camera), even if
+                              # asked for by index.
 CAMERA_WIDTH = 640          # Capture resolution. 640x480 keeps MediaPipe fast.
 CAMERA_HEIGHT = 480
 CAMERA_FPS = 30             # Requested FPS. Some webcams can do 60 at 640x480; try it.

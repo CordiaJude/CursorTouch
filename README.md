@@ -48,7 +48,7 @@ macOS grants these permissions to the app that runs Python: Terminal, iTerm, VS 
 
 On a Mac keyboard, F8 may control media playback. Press **fn+F8**, or turn on "Use F1, F2, etc. keys as standard function keys". You can also change `PAUSE_HOTKEY` in `config.py`.
 
-If the preview is **black**, camera 0 is probably your iPhone (Continuity Camera). Run `python main.py --list-cameras` and use the camera marked OK, for example `python main.py --camera 1`.
+CursorTouch always uses the Mac's **built-in camera** and never opens an iPhone or iPad (Continuity Camera), whatever order macOS lists the cameras in. The startup log shows which cameras were found and which one is used. To use an external webcam instead, pass `--camera N` (see `python main.py --list-cameras`). Phone cameras stay blocked unless you set `ALLOW_PHONE_CAMERA = True` in `config.py`.
 
 Retina displays work without any setup. Cursor coordinates use macOS points, so the active zone always covers the whole screen.
 
